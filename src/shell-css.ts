@@ -6,6 +6,7 @@ export const RAIL_ATTR = "data-bb-workspaces-rail";
 export const SHELF_RAIL_ATTR = "data-bb-workspaces-shelf-rail";
 /** Marks every "the filter can't apply" hint; the stylesheet shows them only while BB's list lacks the filter hooks. */
 export const FILTER_WARNING_ATTR = "data-bb-workspaces-filter-warning";
+const OVERFLOW_MARK_ATTR = "data-bb-workspaces-overflow";
 
 const RAIL = `[${RAIL_ATTR}]`;
 const RAIL_VAR = "--bb-workspaces-rail-width";
@@ -39,6 +40,9 @@ const BB_0_44 = {
   renameRow: "[data-sidebar-rename-row]",
   section: "[data-sidebar-sticky-section]",
   headedGroup: "[data-sidebar-sticky-header]",
+  // BB numbers the thread rows for Mod+1-9 and Mod+Shift+[ ] in DOM order and
+  // skips any row inside an element carrying this as "true".
+  overflow: "data-sidebar-overflow",
 } as const;
 
 const DESKTOP = `:root:has(${BB_0_44.wrapper} > ${BB_0_44.gap} + ${BB_0_44.panel})`;
@@ -62,26 +66,41 @@ const LAYOUT_CSS = [
   `${BB_0_44.shelfPanel}:has(> [${SHELF_RAIL_ATTR}]) { padding-left: var(${RAIL_VAR}); }`,
 ].join("\n");
 
-export function shellCss(mask: SidebarMask): string {
-  return [LAYOUT_CSS, ...maskRules(mask)].join("\n");
+export function shellCss(hidden: readonly string[]): string {
+  return [LAYOUT_CSS, ...hidden.map((selector) => `${selector} { display: none !important; }`)].join("\n");
 }
 
-function maskRules(mask: SidebarMask): string[] {
-  const rules: string[] = [];
-  const hide = (selector: string) => rules.push(`${selector} { display: none !important; }`);
-  if (mask.hiddenProjects.size > 0) {
-    hide([...mask.hiddenProjects].map(BB_0_44.projectGroup).join(",\n"));
-  }
-  if (mask.hidePersonalGroup) hide(BB_0_44.personalGroup);
+export function maskSelectors(mask: SidebarMask): readonly string[] {
+  const selectors = [...mask.hiddenProjects].map(BB_0_44.projectGroup);
+  if (mask.hidePersonalGroup) selectors.push(BB_0_44.personalGroup);
   if (mask.hiddenRoots.size > 0) {
     const roots = `:is(${[...mask.hiddenRoots].map(BB_0_44.threadRow).join(", ")})`;
-    hide(`${BB_0_44.threadTree}:has(> ${BB_0_44.renameRow} ${roots})`);
+    selectors.push(`${BB_0_44.threadTree}:has(> ${BB_0_44.renameRow} ${roots})`);
     // A headed group ("Pinned") whose every root row is masked would leave a
     // bare label.
     const rootRows = `${BB_0_44.section} > ${BB_0_44.threadTree} > ${BB_0_44.renameRow} ${BB_0_44.anyThreadRow}`;
-    hide(`${BB_0_44.headedGroup}:has(${rootRows}):not(:has(${rootRows}:not(${roots})))`);
+    selectors.push(`${BB_0_44.headedGroup}:has(${rootRows}):not(:has(${rootRows}:not(${roots})))`);
   }
-  return rules;
+  return selectors;
+}
+
+export function syncOverflowMarks(selectors: readonly string[]): void {
+  const hidden = new Set<Element>();
+  if (selectors.length > 0) {
+    for (const panel of document.querySelectorAll(BB_0_44.panel)) {
+      for (const element of panel.querySelectorAll(selectors.join(", "))) hidden.add(element);
+    }
+  }
+  for (const element of document.querySelectorAll(`[${OVERFLOW_MARK_ATTR}]`)) {
+    if (hidden.has(element)) continue;
+    element.removeAttribute(OVERFLOW_MARK_ATTR);
+    element.removeAttribute(BB_0_44.overflow);
+  }
+  for (const element of hidden) {
+    if (element.hasAttribute(BB_0_44.overflow)) continue;
+    element.setAttribute(BB_0_44.overflow, "true");
+    element.setAttribute(OVERFLOW_MARK_ATTR, "");
+  }
 }
 
 export function findShelfPanel(): Element | null {
@@ -89,7 +108,7 @@ export function findShelfPanel(): Element | null {
 }
 
 /** Calls back when BB swaps its layout (a viewport crossing the compact breakpoint remounts the panel). */
-export function watchShelfPanel(onChange: () => void): () => void {
+export function watchLayout(onChange: () => void): () => void {
   const observer = new MutationObserver(() => {
     observeLayout();
     onChange();
@@ -103,4 +122,29 @@ export function watchShelfPanel(onChange: () => void): () => void {
   };
   observeLayout();
   return () => observer.disconnect();
+}
+
+export function watchSidebarRows(onChange: () => void): () => void {
+  let frame: number | null = null;
+  const schedule = () => {
+    frame ??= requestAnimationFrame(() => {
+      frame = null;
+      onChange();
+    });
+  };
+  const rows = new MutationObserver(schedule);
+  const observePanels = () => {
+    rows.disconnect();
+    for (const panel of document.querySelectorAll(BB_0_44.panel)) rows.observe(panel, { childList: true, subtree: true });
+  };
+  observePanels();
+  const stopLayout = watchLayout(() => {
+    observePanels();
+    schedule();
+  });
+  return () => {
+    stopLayout();
+    rows.disconnect();
+    if (frame !== null) cancelAnimationFrame(frame);
+  };
 }

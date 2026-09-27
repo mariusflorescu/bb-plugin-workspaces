@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { BoardState } from "../client";
-import { findShelfPanel, watchShelfPanel } from "../shell-css";
+import { findShelfPanel, watchLayout } from "../shell-css";
 import { WorkspaceRail } from "./WorkspaceRail";
 
 /**
@@ -9,6 +9,6 @@ import { WorkspaceRail } from "./WorkspaceRail";
  * that panel keeps the rail in its focus scope and inert with it when closed.
  */
 export function ShelfRail({ state }: { readonly state: BoardState }) {
-  const panel = useSyncExternalStore(watchShelfPanel, findShelfPanel, () => null);
+  const panel = useSyncExternalStore(watchLayout, findShelfPanel, () => null);
   return panel === null ? null : createPortal(<WorkspaceRail state={state} placement="shelf" />, panel);
 }

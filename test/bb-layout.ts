@@ -1,3 +1,7 @@
+export const threadRow = (id: string): string =>
+  `<div data-sidebar-sticky-group data-testid="tree-${id}"><div data-sidebar-rename-row>` +
+  `<a data-sidebar-thread-id="${id}" data-sidebar-thread-shortcut-target></a></div></div>`;
+
 export function mountBbDesktopLayout(): () => void {
   const root = document.createElement("div");
   root.id = "root";

@@ -3,7 +3,7 @@ import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { act, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mountBbCompactLayout, mountBbDesktopLayout } from "../../test/bb-layout";
+import { mountBbCompactLayout, mountBbDesktopLayout, threadRow } from "../../test/bb-layout";
 import { PROJECTS, fakeBackend, type FakeRpc } from "../../test/fake-backend";
 import "../../test/ui-lifecycle";
 import { selectWorkspace } from "../client";
@@ -105,6 +105,32 @@ describe("the rail", () => {
     document.body.append(group);
     expect(warning && getComputedStyle(warning).display).toBe("none");
     group.remove();
+  });
+
+  it("takes the groups it hides out of BB's thread shortcuts, marks remounted rows, and leaves no mark after unmount", async () => {
+    const group = (key: string) => `<div data-sidebar-visibility-group="${key}">${threadRow(`thr_${key.replace(/\W/g, "_")}`)}</div>`;
+    const panel = document.querySelector('[data-sidebar="panel"]');
+    panel?.insertAdjacentHTML("beforeend", ["project:proj_acme", "project:proj_globex", "threads"].map(group).join(""));
+    const flagged = () =>
+      [...document.querySelectorAll('[data-sidebar-overflow="true"][data-bb-workspaces-overflow]')].map((element) =>
+        element.getAttribute("data-sidebar-visibility-group"),
+      );
+    const backend = await fakeBackend(SEED);
+    const { slot, rail } = mountRail(backend.rpc);
+    fireEvent.click(await rail().findByRole("button", { name: "Acme" }));
+    await vi.waitFor(() => expect(flagged()).toEqual(["project:proj_globex", "threads"]));
+
+    act(() => {
+      panel?.querySelector('[data-sidebar-visibility-group="project:proj_globex"]')?.remove();
+      panel?.insertAdjacentHTML("afterbegin", group("project:proj_globex"));
+    });
+    await vi.waitFor(() => expect(flagged()).toEqual(["project:proj_globex", "threads"]));
+
+    fireEvent.click(rail().getByRole("button", { name: "Globex" }));
+    await vi.waitFor(() => expect(flagged()).toEqual(["project:proj_acme", "threads"]));
+
+    slot.unmount();
+    expect(document.querySelectorAll("[data-sidebar-overflow], [data-bb-workspaces-overflow]")).toHaveLength(0);
   });
 
   it("hides the rail but keeps filtering where BB has no desktop sidebar (compact)", async () => {

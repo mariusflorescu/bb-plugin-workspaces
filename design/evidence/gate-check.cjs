@@ -77,8 +77,8 @@ function buildScenario(policy, domProjects) {
   }
   return {
     board,
-    css: policy.shellCss(board.mask),
-    allCss: policy.shellCss(allBoard.mask),
+    css: policy.shellCss(policy.maskSelectors(board.mask)),
+    allCss: policy.shellCss(policy.maskSelectors(allBoard.mask)),
     near,
     rootProject,
     railWidth: policy.RAIL_WIDTH_PX,
