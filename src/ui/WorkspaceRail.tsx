@@ -5,6 +5,7 @@ import { usePortalScopeProps } from "@/lib/portal-scope";
 import { openCreateEditor, selectWorkspace, type BoardState } from "../client";
 import { ALL, hidesAnything } from "../domain";
 import { RAIL_ATTR, RAIL_WIDTH_PX, SHELF_RAIL_ATTR } from "../shell-css";
+import { tileShortcutHint } from "../shortcuts";
 import { AddTile } from "./AddTile";
 import { AllTile } from "./AllTile";
 import { RailTileButton } from "./RailTileButton";
@@ -43,6 +44,7 @@ export const WorkspaceRail = memo(function WorkspaceRail({
       <AllTile
         active={active === null}
         unfiledCount={board?.unfiled.length ?? 0}
+        shortcut={tileShortcutHint(1, navigator.platform)}
         onSelect={() => selectWorkspace(ALL)}
       />
       <div aria-hidden="true" className="my-2 h-px w-6 shrink-0 bg-border" />
@@ -74,6 +76,7 @@ export const WorkspaceRail = memo(function WorkspaceRail({
               filtering={entry.workspace.id === active && hidesAnything(state.mask)}
               first={index === 0}
               last={index === board.entries.length - 1}
+              shortcut={tileShortcutHint(index + 2, navigator.platform)}
               onSelect={() => selectWorkspace({ kind: "workspace", id: entry.workspace.id })}
             />
           </li>

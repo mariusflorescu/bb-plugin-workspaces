@@ -9,8 +9,10 @@ import {
   WorkspaceNameSchema,
   deriveInitials,
   displayInitials,
+  railOrder,
   readableInk,
   resolveBoard,
+  selectionAtTile,
   selectionForRoute,
   stepSelection,
   hidesAnything,
@@ -180,6 +182,26 @@ describe("selectionForRoute", () => {
   ])("$name", ({ threadId, projectId, expected }) => {
     const route = { threadId: threadId === null ? null : tid(threadId), projectId: projectId === null ? null : pid(projectId) };
     expect(selectionForRoute(doc(pick("acme")), route)).toEqual(expected);
+  });
+});
+
+describe("the rail's tile order", () => {
+  it("puts All workspaces first, then the workspaces in their order", () => {
+    expect(railOrder(doc())).toEqual([{ kind: "all" }, { kind: "workspace", id: "acme" }, { kind: "workspace", id: "globex" }]);
+    expect(railOrder({ workspaces: [] })).toEqual([{ kind: "all" }]);
+  });
+
+  it.each([
+    { tile: 1, expected: { kind: "all" } },
+    { tile: 2, expected: { kind: "workspace", id: "acme" } },
+    { tile: 3, expected: { kind: "workspace", id: "globex" } },
+    { tile: 4, expected: null },
+  ] as const)("tile $tile is $expected.kind $expected.id", ({ tile, expected }) => {
+    expect(selectionAtTile(doc(), tile)).toEqual(expected);
+  });
+
+  it("has only All workspaces before any workspace exists", () => {
+    expect([selectionAtTile({ workspaces: [] }, 1), selectionAtTile({ workspaces: [] }, 2)]).toEqual([{ kind: "all" }, null]);
   });
 });
 

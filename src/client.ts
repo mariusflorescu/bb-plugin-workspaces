@@ -28,11 +28,13 @@ import {
   WorkspacesChangedSchema,
   resolveBoard,
   sameSelection,
+  selectionAtTile,
   selectionForRoute,
   stepSelection,
   toDoc,
   toWireSelection,
   type Board,
+  type NumberedTile,
   type ProjectId,
   type ProjectRef,
   type RouteFocus,
@@ -53,6 +55,8 @@ export const queryClient = new QueryClient({
 });
 
 const docKey = queryOptions<WireDoc>({ queryKey: ["workspaces", "doc"] }).queryKey;
+
+const railDoc = () => queryClient.getQueryData(docKey) ?? { workspaces: [] };
 
 interface Store<T> {
   get(): T;
@@ -267,7 +271,7 @@ export const useDeleteWorkspace = () =>
 export const useMoveWorkspace = () =>
   useDocMutation(
     (rpc, { id, delta }: { readonly id: WorkspaceId; readonly delta: 1 | -1 }) => {
-      const ids = (queryClient.getQueryData(docKey)?.workspaces ?? []).map((workspace) => workspace.id);
+      const ids = railDoc().workspaces.map((workspace) => workspace.id);
       const from = ids.indexOf(id);
       const to = from + delta;
       if (from !== -1 && to >= 0 && to < ids.length) ids.splice(to, 0, ...ids.splice(from, 1));
@@ -277,13 +281,20 @@ export const useMoveWorkspace = () =>
   );
 
 export function canStep(): boolean {
-  return (queryClient.getQueryData(docKey)?.workspaces.length ?? 0) > 0;
+  return railDoc().workspaces.length > 0;
 }
 
 export function stepWorkspace(delta: 1 | -1): void {
   const wire = queryClient.getQueryData(docKey);
   if (wire === undefined || wire.workspaces.length === 0) return;
   selectWorkspace(stepSelection(toDoc(wire), delta));
+}
+
+export const hasTile = (tile: NumberedTile): boolean => selectionAtTile(railDoc(), tile) !== null;
+
+export function selectTile(tile: NumberedTile): void {
+  const target = selectionAtTile(railDoc(), tile);
+  if (target !== null) selectWorkspace(target);
 }
 
 const NEITHER: RouteFocus = { projectId: null, threadId: null };

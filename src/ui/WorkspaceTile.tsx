@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { openEditor, useMoveWorkspace } from "../client";
 import type { WorkspaceEntry } from "../domain";
 import { FILTER_WARNING_ATTR } from "../shell-css";
+import type { ShortcutHint } from "../shortcuts";
 import { projectCount } from "./format";
 import { RailTileButton } from "./RailTileButton";
 import { WorkspaceAvatar } from "./WorkspaceAvatar";
@@ -28,6 +29,7 @@ export function WorkspaceTile({
   filtering,
   first,
   last,
+  shortcut,
   onSelect,
 }: {
   readonly entry: WorkspaceEntry;
@@ -36,6 +38,7 @@ export function WorkspaceTile({
   readonly filtering: boolean;
   readonly first: boolean;
   readonly last: boolean;
+  readonly shortcut: ShortcutHint | null;
   readonly onSelect: () => void;
 }) {
   const move = useMoveWorkspace();
@@ -62,6 +65,7 @@ export function WorkspaceTile({
                   {filtering ? <span {...{ [FILTER_WARNING_ATTR]: "" }}> · BB's sidebar changed, so every project is shown</span> : null}
                 </>
               }
+              shortcut={shortcut}
               active={active}
               aria-haspopup={active ? "menu" : undefined}
               aria-expanded={active ? actionsOpen : undefined}

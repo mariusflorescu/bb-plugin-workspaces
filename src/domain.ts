@@ -246,11 +246,19 @@ export function sameSelection(a: Selection, b: Selection): boolean {
   return a.kind === "all" ? b.kind === "all" : b.kind === "workspace" && a.id === b.id;
 }
 
+export function railOrder(doc: Pick<WorkspaceDoc, "workspaces">): readonly Selection[] {
+  return [ALL, ...doc.workspaces.map((workspace): Selection => ({ kind: "workspace", id: workspace.id }))];
+}
+
+export const NUMBERED_TILES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+export type NumberedTile = (typeof NUMBERED_TILES)[number];
+
+export function selectionAtTile(doc: Pick<WorkspaceDoc, "workspaces">, tile: NumberedTile): Selection | null {
+  return railOrder(doc)[tile - 1] ?? null;
+}
+
 export function stepSelection(doc: WorkspaceDoc, delta: 1 | -1): Selection {
-  const order: Selection[] = [
-    ALL,
-    ...doc.workspaces.map((workspace): Selection => ({ kind: "workspace", id: workspace.id })),
-  ];
+  const order = railOrder(doc);
   const index = Math.max(0, order.findIndex((entry) => sameSelection(entry, doc.selection)));
   return order[(index + delta + order.length) % order.length] ?? ALL;
 }

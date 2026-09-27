@@ -89,6 +89,20 @@ describe("the rail", () => {
     expect(stylesheet()).not.toContain('"project:proj_acme"');
   });
 
+  it("names each tile's default chord in its tooltip and aria-keyshortcuts", async () => {
+    const backend = await fakeBackend(SEED);
+    const { slot, rail } = mountRail(backend.rpc);
+    const globex = await rail().findByRole("button", { name: "Globex" });
+    expect(rail().getAllByRole("button").map((button) => button.getAttribute("aria-keyshortcuts"))).toEqual([
+      "Control+Alt+1",
+      "Control+Alt+2",
+      "Control+Alt+3",
+      null,
+    ]);
+    await userEvent.hover(globex);
+    expect((await slot.findByRole("tooltip")).textContent).toBe("Globex · 1 project · Ctrl+Alt+3");
+  });
+
   it("shows the filter warning on the selected tile only while BB's list lacks the filter hooks", async () => {
     const backend = await fakeBackend(SEED);
     const { rail } = mountRail(backend.rpc);
