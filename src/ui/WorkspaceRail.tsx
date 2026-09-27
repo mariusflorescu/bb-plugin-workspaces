@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Icon } from "@/components/ui/icon";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePortalScopeProps } from "@/lib/portal-scope";
 import { openCreateEditor, selectWorkspace, type BoardState } from "../client";
 import { ALL, hidesAnything } from "../domain";
 import { RAIL_ATTR, RAIL_WIDTH_PX, SHELF_RAIL_ATTR } from "../shell-css";
@@ -11,9 +12,10 @@ import { WorkspaceTile } from "./WorkspaceTile";
 
 const PLACEMENT = {
   // The stylesheet owns this one's display, slide and the room BB makes for it.
-  column: { attr: RAIL_ATTR, className: "fixed inset-y-0 left-0 z-[11] flex-col [--rail-inset-top:var(--bb-app-chrome-row-height)]" },
+  column: { attr: RAIL_ATTR, portaled: false, className: "fixed inset-y-0 left-0 z-[11] flex-col [--rail-inset-top:var(--bb-app-chrome-row-height)]" },
   shelf: {
     attr: SHELF_RAIL_ATTR,
+    portaled: true,
     className: "absolute inset-y-0 left-0 flex flex-col [--rail-inset-top:calc(env(safe-area-inset-top)+var(--bb-app-chrome-row-height))]",
   },
 } as const;
@@ -27,10 +29,12 @@ export const WorkspaceRail = memo(function WorkspaceRail({
 }) {
   const board = state.status === "ready" ? state.board : null;
   const active = board?.active.kind === "workspace" ? board.active.entry.workspace.id : null;
-  const { attr, className } = PLACEMENT[placement];
+  const { attr, portaled, className } = PLACEMENT[placement];
+  const scope = usePortalScopeProps();
   return (
     <nav
       {...{ [attr]: "" }}
+      {...(portaled ? scope : {})}
       aria-label="Workspaces"
       className={`${className} items-center bg-sidebar pb-3`}
       style={{ width: RAIL_WIDTH_PX }}
