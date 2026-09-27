@@ -207,9 +207,9 @@ async function createWorkspace(page, name) {
 
     const logo = await page.screenshot({ clip: { x: 0, y: 0, width: 300, height: 180 } });
     await page.setInputFiles("#workspace-image", { name: "logo.png", mimeType: "image/png", buffer: logo });
-    const preview = editor.locator("img[src^='data:image/']");
+    const preview = editor.locator("img[src^='data:image/']:not([aria-label='Projects'] img)");
     await preview.waitFor({ timeout: 4000 });
-    check("image: a picked file is cropped into the preview and can be removed", (await preview.count()) > 0 && (await editor.getByRole("button", { name: "Remove" }).count()) === 1, null);
+    check("image: a picked file is cropped into the preview and can be removed", (await preview.count()) === 1 && (await editor.getByRole("button", { name: "Remove" }).count()) === 1, null);
 
     const projects = editor.getByRole("list", { name: "Projects" });
     const listBox = await projects.boundingBox();
