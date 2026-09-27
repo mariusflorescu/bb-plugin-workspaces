@@ -145,6 +145,20 @@ describe("the rail", () => {
     await vi.waitFor(() => expect(document.querySelector('[data-sidebar="panel"] > nav')).toBeNull());
   });
 
+  it("carries the plugin's CSS scope on the shelf rail, which lives outside the plugin root", async () => {
+    unmountLayout();
+    const compact = mountBbCompactLayout();
+    unmountLayout = compact.unmount;
+    const backend = await fakeBackend(SEED);
+    mountRail(backend.rpc);
+    const nav = await vi.waitFor(() => {
+      const nav = document.querySelector('[data-sidebar="panel"] > nav');
+      if (nav === null) throw new Error("no rail inside the shelf panel");
+      return nav;
+    });
+    expect(nav.closest("[data-bb-plugin-root]")).not.toBeNull();
+  });
+
   it("keeps BB's shelf untouched when there is no compact panel", async () => {
     const backend = await fakeBackend(SEED);
     const { rail } = mountRail(backend.rpc);
