@@ -41,7 +41,7 @@ BB numbers the sidebar's threads for ⌘1-9 and ⌘⇧[ ] straight from the DOM 
 | Module | Owns |
 | --- | --- |
 | `src/domain.ts` | zod-branded values, the `Workspace` schema, `resolveBoard()`, the pure visibility policy, and `railOrder()`, the rail's tile order |
-| `src/shell-css.ts` | every BB DOM hook, `maskSelectors(mask)`, `shellCss(mask)`, the overflow marks and the filter probe |
+| `src/shell-css.ts` | every BB DOM hook, `maskSelectors(mask)`, `shellCss(selectors)`, the overflow marks and the filter probe |
 | `src/shortcuts.ts` | the rail's default chords and how each one reads on the user's platform |
 | `server.ts` | SQLite migrations, `WorkspaceStore`, the RPC contract and the `bb workspaces` CLI |
 | `src/client.ts` | the TanStack Query cache, `useBoard()`, the mutation hooks, the shared selection and route following |
