@@ -71,6 +71,12 @@ It creates only `verify-*` workspaces and deletes them. It sets the shared selec
 PW=<path to playwright> CHROME=<path to a Chromium binary> npm run mobile
 ```
 
+`design/evidence/divider-check.cjs` checks that the rail's divider stays out of the title-bar row, where macOS draws the traffic lights. It opens the installed plugin in BB's web UI in light, in dark and in the phone shelf, reads the pixel column at the rail's right edge, and asserts that nothing is drawn there inside BB's title-bar row and that the divider runs from under that row to the rail's bottom. It writes `divider-check.json` and screenshots to `.evidence/` and exits 1 on any failure:
+
+```
+PW=<path to playwright> CHROME=<path to a Chromium binary> npm run divider
+```
+
 Install and reload with `bb plugin install .` and `bb plugin reload workspaces`, or let `bb plugin dev` rebuild and reload on every save.
 
 ## UI components

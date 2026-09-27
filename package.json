@@ -13,7 +13,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "gate": "node design/evidence/gate-check.cjs",
-    "mobile": "node design/evidence/mobile-drive.cjs"
+    "mobile": "node design/evidence/mobile-drive.cjs",
+    "divider": "node design/evidence/divider-check.cjs"
   },
   "engines": {
     "bb": ">=0.44",
