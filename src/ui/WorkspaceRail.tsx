@@ -11,8 +11,11 @@ import { WorkspaceTile } from "./WorkspaceTile";
 
 const PLACEMENT = {
   // The stylesheet owns this one's display, slide and the room BB makes for it.
-  column: { attr: RAIL_ATTR, className: "fixed inset-y-0 left-0 z-[11] flex-col" },
-  shelf: { attr: SHELF_RAIL_ATTR, className: "absolute inset-y-0 left-0 flex flex-col pt-[env(safe-area-inset-top)]" },
+  column: { attr: RAIL_ATTR, className: "fixed inset-y-0 left-0 z-[11] flex-col [--rail-inset-top:var(--bb-app-chrome-row-height)]" },
+  shelf: {
+    attr: SHELF_RAIL_ATTR,
+    className: "absolute inset-y-0 left-0 flex flex-col [--rail-inset-top:calc(env(safe-area-inset-top)+var(--bb-app-chrome-row-height))]",
+  },
 } as const;
 
 export const WorkspaceRail = memo(function WorkspaceRail({
@@ -29,10 +32,10 @@ export const WorkspaceRail = memo(function WorkspaceRail({
     <nav
       {...{ [attr]: "" }}
       aria-label="Workspaces"
-      className={`${className} items-center border-r border-border bg-sidebar pb-3`}
+      className={`${className} items-center bg-sidebar pb-3`}
       style={{ width: RAIL_WIDTH_PX }}
     >
-      <div aria-hidden="true" className="h-(--bb-app-chrome-row-height) w-full shrink-0 [-webkit-app-region:drag]" />
+      <div aria-hidden="true" className="h-(--rail-inset-top) w-full shrink-0 [-webkit-app-region:drag]" />
       <AllTile
         active={active === null}
         unfiledCount={board?.unfiled.length ?? 0}
@@ -77,6 +80,10 @@ export const WorkspaceRail = memo(function WorkspaceRail({
           </li>
         )}
       </ul>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute top-(--rail-inset-top) right-0 bottom-0 w-px bg-[linear-gradient(to_bottom,transparent,var(--border)_32px,var(--border))] opacity-80"
+      />
     </nav>
   );
 });
