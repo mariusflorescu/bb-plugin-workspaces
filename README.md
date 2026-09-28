@@ -14,7 +14,7 @@ Requires bb 0.44 or newer. `bb plugin update workspaces` pulls later versions.
 
 - **All workspaces** (the grid tile at the top) shows every project. Below it is one tile per workspace: its initials on its color, or its image. **+** creates a workspace.
 - Click a tile and the sidebar shows only the projects that workspace owns. Unfiled projects and the personal Threads group show only under All workspaces.
-- Click or tap the selected tile again, or right-click any tile, for **Edit**, **Move up**, **Move down** and **Delete**. The edit dialog has **Delete** too. Deleting a workspace keeps its projects in BB, unfiled.
+- A click or tap only selects a tile. Right-click any tile for **Edit**, **Move up**, **Move down** and **Delete**. On a phone, press and hold the tile. From the keyboard, focus the tile and press Shift+F10 or the Menu key. The edit dialog has **Delete** too. Deleting a workspace keeps its projects in BB, unfiled.
 - In the editor, the initials follow the name (Acme → AC) until you type your own; clear the field to follow the name again. **Color** opens twelve presets and a custom picker with a hex field. **Image** is optional and is cropped to a 128px square; it replaces the color on the tile. **Projects** is a checklist; ticking a project that lives in another workspace moves it here.
 - The selection is shared: every window and device shows the same workspace, and a workspace you create becomes the selection. Opening a thread or a project page switches to the workspace that owns its project, or to All workspaces when the project is unfiled or the thread has no project. Pages with neither, such as Settings, Plugins or a plugin panel, leave the selection alone. Picking a tile while a thread stays open keeps your pick.
 - On a phone, open BB's sidebar: the rail is its first column, and every action works by touch. The editor opens as a bottom sheet and keeps **Save** above the keyboard. With the desktop sidebar collapsed, use **Workspaces** in the sidebar footer.
@@ -68,10 +68,10 @@ PW=<path to playwright> CHROME=<path to a Chromium binary> npm run gate
 `design/evidence/mobile-drive.cjs` drives the installed plugin in the same BB as an iPhone 13 with touch. It checks:
 
 - the rail inside BB's sidebar shelf and its open and close slide;
-- every tile action by touch: switch, create, edit, move up, move down and delete;
+- every tile action by touch: a tap switches and creates, a tap on the selected tile opens nothing, and a long-press opens the actions for edit, move up, move down and delete with no `contextmenu` event, through Radix's own timer;
 - the editor sheet: the color swatches, a touch drag on the custom picker, the hex field, the image picker and the project list, with Save in view under a keyboard.
 
-It creates only `verify-*` workspaces and deletes them. It sets the shared selection back to All workspaces, checks that your own workspaces and filings are unchanged, writes `mobile-drive.json` and screenshots to `.evidence/`, and exits 1 on any failure:
+It creates only `verify-*` workspaces and deletes them. It puts the shared selection back where it was, checks that your own workspaces and filings are unchanged, writes `mobile-drive.json` and screenshots to `.evidence/`, and exits 1 on any failure:
 
 ```
 PW=<path to playwright> CHROME=<path to a Chromium binary> npm run mobile
@@ -94,6 +94,12 @@ It needs one of your workspaces to hide a thread row while showing another, and 
 
 ```
 PW=<path to playwright> CHROME=<path to a Chromium binary> npm run shortcuts
+```
+
+`design/evidence/actions-check.cjs` checks how a tile's actions open in BB's web UI at desktop size. It checks that a left-click on the selected tile opens no menu and keeps it selected, and that a right-click, Shift+F10 on the focused tile and the Menu key each open exactly **Edit**, **Move up**, **Move down** and **Delete**. It also checks that the tooltip says "right-click for actions". It creates one `verify-*` workspace and deletes it, puts the shared selection back where it was, checks that your own workspaces and filings are unchanged, writes `actions-check.json` and screenshots to `.evidence/`, and exits 1 on any failure:
+
+```
+PW=<path to playwright> CHROME=<path to a Chromium binary> npm run actions
 ```
 
 Install and reload with `bb plugin install .` and `bb plugin reload workspaces`, or let `bb plugin dev` rebuild and reload on every save.
