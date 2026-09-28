@@ -25,6 +25,11 @@ function mountRail(rpc: Partial<FakeRpc>) {
   return { slot, rail, stylesheet };
 }
 
+const menuItems = (menu: HTMLElement) =>
+  within(menu)
+    .getAllByRole("menuitem")
+    .map((item) => `${item.textContent}${item.getAttribute("aria-disabled") === "true" ? " (disabled)" : ""}`);
+
 let unmountLayout = () => {};
 
 beforeEach(() => {
@@ -100,7 +105,7 @@ describe("the rail", () => {
       null,
     ]);
     await userEvent.hover(globex);
-    expect((await slot.findByRole("tooltip")).textContent).toBe("Globex · 1 project · Ctrl+Alt+3");
+    expect((await slot.findByRole("tooltip")).textContent).toBe("Globex · 1 project · right-click for actions · Ctrl+Alt+3");
   });
 
   it("shows the filter warning on the selected tile only while BB's list lacks the filter hooks", async () => {
@@ -206,32 +211,6 @@ describe("the rail", () => {
     expect(document.querySelectorAll('[data-sidebar="panel"] > nav')).toHaveLength(0);
   });
 
-  it("opens a selected tile's actions on a second tap, with move and delete working from there", async () => {
-    const backend = await fakeBackend(SEED);
-    const { slot, rail } = mountRail(backend.rpc);
-    const acme = await rail().findByRole("button", { name: "Acme" });
-    fireEvent.click(acme);
-    await vi.waitFor(() => expect(acme.getAttribute("aria-pressed")).toBe("true"));
-    expect(slot.queryByRole("menu", { name: "Acme actions" })).toBeNull();
-
-    fireEvent.click(acme);
-    const actions = within(await slot.findByRole("menu", { name: "Acme actions" }));
-    expect(actions.getByRole("menuitem", { name: "Move up" }).hasAttribute("disabled")).toBe(true);
-    fireEvent.click(actions.getByRole("menuitem", { name: "Move down" }));
-    await vi.waitFor(() =>
-      expect(rail().getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
-        "All workspaces",
-        "Globex",
-        "Acme",
-        "New workspace",
-      ]),
-    );
-
-    fireEvent.click(rail().getByRole("button", { name: "Acme" }));
-    fireEvent.click(within(await slot.findByRole("menu", { name: "Acme actions" })).getByRole("menuitem", { name: "Delete…" }));
-    expect(await slot.findByRole("alertdialog", { name: "Delete Acme?" })).toBeTruthy();
-  });
-
   it("gives touch no tooltips, so a tap goes straight to the tile", async () => {
     const matchMedia = window.matchMedia;
     window.matchMedia = (media: string) => ({ ...matchMedia(media), matches: media === "(pointer: coarse)" });
@@ -250,11 +229,19 @@ describe("the rail", () => {
     }
   });
 
-  it("moves and deletes a workspace from its context menu", async () => {
+  it("opens a tile's actions only from its context menu, then moves and deletes from there", async () => {
     const backend = await fakeBackend(SEED);
     const { slot, rail } = mountRail(backend.rpc);
-    fireEvent.contextMenu(await rail().findByRole("button", { name: "Acme" }));
-    fireEvent.click(await slot.findByRole("menuitem", { name: "Move down" }));
+    const acme = await rail().findByRole("button", { name: "Acme" });
+    fireEvent.click(acme);
+    await vi.waitFor(() => expect(acme.getAttribute("aria-pressed")).toBe("true"));
+    fireEvent.click(acme);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(slot.queryByRole("menu")).toBeNull();
+
+    fireEvent.contextMenu(acme);
+    expect(menuItems(await slot.findByRole("menu"))).toEqual(["Edit…", "Move up (disabled)", "Move down", "Delete…"]);
+    fireEvent.click(slot.getByRole("menuitem", { name: "Move down" }));
     await vi.waitFor(() =>
       expect(rail().getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
         "All workspaces",
@@ -276,5 +263,26 @@ describe("the rail", () => {
       memberships: [{ projectId: "proj_globex", workspaceId: "globex" }],
       selectedWorkspaceId: null,
     });
+  });
+
+  it("opens the focused tile's actions with Shift+F10 and runs one from the keyboard", async () => {
+    const backend = await fakeBackend(SEED);
+    const { slot, rail } = mountRail(backend.rpc);
+    const globex = await rail().findByRole("button", { name: "Globex" });
+    globex.focus();
+    await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+    expect(menuItems(await slot.findByRole("menu"))).toEqual(["Edit…", "Move up", "Move down (disabled)", "Delete…"]);
+    await userEvent.keyboard("{ArrowDown}");
+    expect(document.activeElement?.textContent).toBe("Move up");
+    await userEvent.keyboard("{Enter}");
+    await vi.waitFor(() =>
+      expect(rail().getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+        "All workspaces",
+        "Globex",
+        "Acme",
+        "New workspace",
+      ]),
+    );
+    expect(document.activeElement).toBe(rail().getByRole("button", { name: "Globex" }));
   });
 });
