@@ -6,6 +6,7 @@ const BB_URL = process.env.BB_URL ?? "http://127.0.0.1:38886/";
 const OUT = process.env.OUT ?? path.join(__dirname, "..", "..", ".evidence");
 fs.mkdirSync(OUT, { recursive: true });
 const VERIFY = /^verify-/;
+const ACTIONS = "Edit…|Move up|Move down|Delete…";
 
 const results = [];
 function check(name, ok, detail) {
@@ -43,12 +44,11 @@ const userView = (doc) => ({
   memberships: doc.memberships.filter((m) => !doc.workspaces.some((w) => w.id === m.workspaceId && VERIFY.test(w.name))),
 });
 
-async function cleanUp(page) {
+async function deleteVerifyWorkspaces(page) {
   const doc = await rpc(page, "workspaces_get", null);
   for (const workspace of doc.workspaces.filter((w) => VERIFY.test(w.name))) {
     await rpc(page, "workspace_delete", { id: workspace.id });
   }
-  await rpc(page, "selection_set", { id: null });
 }
 
 async function touchDrag(cdp, from, to, steps = 8) {
@@ -58,6 +58,13 @@ async function touchDrag(cdp, from, to, steps = 8) {
     const y = from.y + ((to.y - from.y) * step) / steps;
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] });
   }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+}
+
+async function longPress(cdp, target) {
+  const box = await target.boundingBox();
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+  await new Promise((resolve) => setTimeout(resolve, 900));
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 
@@ -107,6 +114,7 @@ async function openShelf(page) {
 }
 
 const tile = (page, name) => page.locator(`[data-bb-workspaces-shelf-rail] button[aria-label="${name}"]`);
+const menuItems = async (menu) => (await menu.getByRole("menuitem").allTextContents()).map((t) => t.trim()).join("|");
 const inViewport = (box, height) => box !== null && box.y >= 0 && box.y + box.height <= height + 1;
 
 async function createWorkspace(page, name) {
@@ -127,11 +135,15 @@ async function createWorkspace(page, name) {
   const evidence = {};
   const shot = (name) => page.screenshot({ path: path.join(OUT, `mobile-${name}.png`) });
   let before = null;
+  let startSelection;
   try {
-    await page.goto(BB_URL, { waitUntil: "networkidle" });
-    await page.waitForTimeout(3000);
-    await cleanUp(page);
-    before = userView(await rpc(page, "workspaces_get", null));
+    await page.goto(BB_URL, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector("[data-bb-workspaces-shelf-rail] button[aria-pressed=true]", { state: "attached", timeout: 20000 });
+    await page.waitForTimeout(1000);
+    await deleteVerifyWorkspaces(page);
+    const start = await rpc(page, "workspaces_get", null);
+    startSelection = start.selectedWorkspaceId;
+    before = userView(start);
     const height = page.viewportSize().height;
 
     const closed = await shelfState(page);
@@ -234,22 +246,37 @@ async function createWorkspace(page, name) {
     const order = async () => (await shelfState(page)).tiles.map((t) => t.name).filter((n) => VERIFY.test(n));
 
     await tile(page, "verify-mobile-b").tap();
-    const actions = page.getByRole("menu", { name: "verify-mobile-b actions" });
+    const actions = page.getByRole("menu");
+    await page.waitForTimeout(600);
+    const tappedSelected = { menus: await actions.count(), pressed: await tile(page, "verify-mobile-b").getAttribute("aria-pressed") };
+    check("touch: tapping the selected tile opens nothing and keeps it selected", tappedSelected.menus === 0 && tappedSelected.pressed === "true", tappedSelected);
+    if (tappedSelected.menus > 0) {
+      await page.keyboard.press("Escape");
+      await actions.waitFor({ state: "hidden" });
+    }
+
+    await page.evaluate(() => {
+      window.__contextmenus = 0;
+      document.addEventListener("contextmenu", () => (window.__contextmenus += 1), true);
+    });
+    await longPress(cdp, tile(page, "verify-mobile-b"));
     await actions.waitFor();
-    check("touch: tapping the selected tile opens its actions", (await actions.getByRole("menuitem").allTextContents()).map((t) => t.trim()).join("|") === "Edit…|Move up|Move down|Delete…", await actions.getByRole("menuitem").allTextContents());
+    check("touch: a long-press on the selected tile opens its actions", (await menuItems(actions)) === ACTIONS, await menuItems(actions));
+    const contextmenus = await page.evaluate(() => window.__contextmenus);
+    check("touch: the long-press opened them with no contextmenu event, through Radix's own timer", contextmenus === 0, contextmenus);
     await shot("tile-actions");
     await actions.getByRole("menuitem", { name: "Move up" }).tap();
     await openShelf(page);
     const movedUp = await waitFor(order, (o) => o[0] === "verify-mobile-b");
-    check("touch: Move up reorders the rail", movedUp.join(",") === "verify-mobile-b,verify-mobile-a", movedUp);
-    await tile(page, "verify-mobile-b").tap();
+    check("touch: Move up from the long-press reorders the rail", movedUp.join(",") === "verify-mobile-b,verify-mobile-a", movedUp);
+    await longPress(cdp, tile(page, "verify-mobile-b"));
     await actions.waitFor();
     await actions.getByRole("menuitem", { name: "Move down" }).tap();
     await openShelf(page);
     const movedDown = await waitFor(order, (o) => o[0] === "verify-mobile-a");
-    check("touch: Move down reorders it back", movedDown.join(",") === "verify-mobile-a,verify-mobile-b", movedDown);
+    check("touch: Move down from the long-press reorders it back", movedDown.join(",") === "verify-mobile-a,verify-mobile-b", movedDown);
 
-    await tile(page, "verify-mobile-b").tap();
+    await longPress(cdp, tile(page, "verify-mobile-b"));
     await actions.waitFor();
     await actions.getByRole("menuitem", { name: "Edit…" }).tap();
     const edit = page.getByRole("dialog", { name: "Edit verify-mobile-b" });
@@ -259,7 +286,7 @@ async function createWorkspace(page, name) {
     await edit.getByRole("button", { name: "Save" }).tap();
     await edit.waitFor({ state: "hidden" });
     const edited = await waitFor(() => rpc(page, "workspaces_get", null), (d) => d.workspaces.some((w) => w.name === "verify-mobile-b" && w.initials === "VB"));
-    check("touch: Edit from the actions saves", edited.workspaces.some((w) => w.name === "verify-mobile-b" && w.initials === "VB"), edited.workspaces.map((w) => [w.name, w.initials]));
+    check("touch: Edit from the long-press saves", edited.workspaces.some((w) => w.name === "verify-mobile-b" && w.initials === "VB"), edited.workspaces.map((w) => [w.name, w.initials]));
 
     await openShelf(page);
     await tile(page, "verify-mobile-a").tap();
@@ -269,23 +296,20 @@ async function createWorkspace(page, name) {
     const all = await waitFor(() => shelfState(page), (s) => s.tiles[0]?.pressed === "true", 2000);
     check("touch: one tap on All workspaces switches back", all.tiles[0]?.pressed === "true", all.tiles);
 
-    await tile(page, "verify-mobile-a").tap();
-    await waitFor(() => shelfState(page), (s) => s.tiles.some((t) => t.name === "verify-mobile-a" && t.pressed === "true"));
-    await tile(page, "verify-mobile-a").tap();
-    const actionsA = page.getByRole("menu", { name: "verify-mobile-a actions" });
-    await actionsA.waitFor();
-    await actionsA.getByRole("menuitem", { name: "Delete…" }).tap();
+    await longPress(cdp, tile(page, "verify-mobile-a"));
+    await actions.waitFor();
+    const unselected = { items: await menuItems(actions), pressed: await tile(page, "verify-mobile-a").getAttribute("aria-pressed") };
+    check("touch: a long-press on an unselected tile opens its actions and leaves the selection alone", unselected.items === ACTIONS && unselected.pressed === "false", unselected);
+    await actions.getByRole("menuitem", { name: "Delete…" }).tap();
     const confirmA = page.getByRole("alertdialog", { name: "Delete verify-mobile-a?" });
     await confirmA.waitFor();
     await confirmA.getByRole("button", { name: "Delete workspace" }).tap();
     await confirmA.waitFor({ state: "hidden" });
     await openShelf(page);
     const goneA = await waitFor(() => shelfState(page), (s) => !s.tiles.some((t) => t.name === "verify-mobile-a"));
-    check("touch: Delete from the actions removes the workspace", !goneA.tiles.some((t) => t.name === "verify-mobile-a"), goneA.tiles);
+    check("touch: Delete from the long-press removes the workspace", !goneA.tiles.some((t) => t.name === "verify-mobile-a"), goneA.tiles);
 
-    await tile(page, "verify-mobile-b").tap();
-    await waitFor(() => shelfState(page), (s) => s.tiles.some((t) => t.name === "verify-mobile-b" && t.pressed === "true"));
-    await tile(page, "verify-mobile-b").tap();
+    await longPress(cdp, tile(page, "verify-mobile-b"));
     await actions.waitFor();
     await actions.getByRole("menuitem", { name: "Edit…" }).tap();
     await edit.waitFor();
@@ -307,9 +331,14 @@ async function createWorkspace(page, name) {
     check("drive completed without an exception", false, String(error));
   } finally {
     try {
-      await cleanUp(page);
+      await deleteVerifyWorkspaces(page);
+      if (startSelection !== undefined) await rpc(page, "selection_set", { id: startSelection });
       const after = await rpc(page, "workspaces_get", null);
-      check("cleanup: no verify-* workspace is left and the selection is All workspaces", !after.workspaces.some((w) => VERIFY.test(w.name)) && after.selectedWorkspaceId === null, { names: after.workspaces.map((w) => w.name), selected: after.selectedWorkspaceId });
+      check(
+        "cleanup: no verify-* workspace is left and the selection is back where it started",
+        !after.workspaces.some((w) => VERIFY.test(w.name)) && after.selectedWorkspaceId === startSelection,
+        { names: after.workspaces.map((w) => w.name), selected: after.selectedWorkspaceId, startSelection },
+      );
       if (before !== null) {
         check("cleanup: the user's own workspaces and filings are exactly as before", JSON.stringify(userView(after)) === JSON.stringify(before), { before, after: userView(after) });
       }
