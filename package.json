@@ -15,7 +15,8 @@
     "gate": "node design/evidence/gate-check.cjs",
     "mobile": "node design/evidence/mobile-drive.cjs",
     "divider": "node design/evidence/divider-check.cjs",
-    "shortcuts": "node design/evidence/shortcut-check.cjs"
+    "shortcuts": "node design/evidence/shortcut-check.cjs",
+    "actions": "node design/evidence/actions-check.cjs"
   },
   "engines": {
     "bb": ">=0.44",
