@@ -14,6 +14,7 @@ import {
   resolveBoard,
   selectionAtTile,
   selectionForRoute,
+  showsRoute,
   stepSelection,
   hidesAnything,
   type Board,
@@ -182,6 +183,23 @@ describe("selectionForRoute", () => {
   ])("$name", ({ threadId, projectId, expected }) => {
     const route = { threadId: threadId === null ? null : tid(threadId), projectId: projectId === null ? null : pid(projectId) };
     expect(selectionForRoute(doc(pick("acme")), route)).toEqual(expected);
+  });
+});
+
+describe("showsRoute", () => {
+  it.each([
+    { name: "All workspaces shows a foreign thread", selection: ALL, threadId: "t_globex1", projectId: "globex1", expected: true },
+    { name: "a workspace shows a thread in its own project", selection: pick("acme"), threadId: "t_acme1", projectId: "acme1", expected: true },
+    { name: "a workspace shows its own project page", selection: pick("acme"), threadId: null, projectId: "acme2", expected: true },
+    { name: "a workspace hides another workspace's thread", selection: pick("acme"), threadId: "t_globex1", projectId: "globex1", expected: false },
+    { name: "a workspace hides an unfiled project's thread", selection: pick("globex"), threadId: "t_personal", projectId: "personal", expected: false },
+    { name: "a workspace hides a project whose owner was deleted", selection: pick("acme"), threadId: null, projectId: "new1", expected: false },
+    { name: "a thread with no project stays", selection: pick("acme"), threadId: "t_orphan", projectId: null, expected: true },
+    { name: "a page with neither a thread nor a project stays", selection: pick("acme"), threadId: null, projectId: null, expected: true },
+    { name: "a selection naming a deleted workspace shows everything", selection: pick("deleted_workspace"), threadId: "t_globex1", projectId: "globex1", expected: true },
+  ])("$name", ({ selection, threadId, projectId, expected }) => {
+    const route = { threadId: threadId === null ? null : tid(threadId), projectId: projectId === null ? null : pid(projectId) };
+    expect(showsRoute(doc(selection), route)).toBe(expected);
   });
 });
 
