@@ -230,6 +230,11 @@ function liveOwner(doc: Pick<WorkspaceDoc, "workspaces" | "owner">, projectId: P
   return owner !== undefined && doc.workspaces.some((workspace) => workspace.id === owner) ? owner : null;
 }
 
+function liveSelection(doc: Pick<WorkspaceDoc, "workspaces" | "selection">): Selection {
+  const { selection } = doc;
+  return selection.kind === "workspace" && doc.workspaces.some((workspace) => workspace.id === selection.id) ? selection : ALL;
+}
+
 export interface RouteFocus {
   readonly projectId: ProjectId | null;
   readonly threadId: ThreadId | null;
@@ -240,6 +245,11 @@ export function selectionForRoute(doc: WorkspaceDoc, route: RouteFocus): Selecti
   if (route.threadId === null && route.projectId === null) return "unchanged";
   const owner = route.projectId === null ? null : liveOwner(doc, route.projectId);
   return owner === null ? ALL : { kind: "workspace", id: owner };
+}
+
+export function showsRoute(doc: WorkspaceDoc, route: RouteFocus): boolean {
+  const selection = liveSelection(doc);
+  return selection.kind === "all" || route.projectId === null || liveOwner(doc, route.projectId) === selection.id;
 }
 
 export function sameSelection(a: Selection, b: Selection): boolean {
