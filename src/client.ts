@@ -137,10 +137,14 @@ const selectionObserver = new MutationObserver<WireDoc, Error, Selection, { prev
   },
 );
 
+function writeSelection(next: Selection): void {
+  selectionObserver.mutate(next).catch(() => undefined);
+}
+
 const localPicks = createStore<Selection>(ALL);
 
 export function selectWorkspace(next: Selection): void {
-  selectionObserver.mutate(next).catch(() => undefined);
+  writeSelection(next);
   localPicks.set(next);
 }
 
@@ -326,7 +330,7 @@ export function useFollowRoute(route: BbContext, ready: boolean): void {
     if (last.projectId === projectId && last.threadId === threadId) return;
     const doc = toDoc(wire);
     const target = selectionForRoute(doc, { projectId, threadId });
-    if (target !== "unchanged" && !sameSelection(target, doc.selection)) selectWorkspace(target);
+    if (target !== "unchanged" && !sameSelection(target, doc.selection)) writeSelection(target);
   }, [projectId, threadId, ready]);
 }
 
