@@ -1,5 +1,5 @@
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
-import type { PluginSidebarProject } from "@get-bb/plugin-sdk/app";
+import type { PluginSidebarProject, PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import plugin from "../server";
 
 export const PROJECTS: readonly PluginSidebarProject[] = [
@@ -11,6 +11,51 @@ export const PROJECTS: readonly PluginSidebarProject[] = [
 
 function sidebarProject(id: string, name: string, isPersonal = false): PluginSidebarProject {
   return { id, name, isPersonal, href: `/projects/${id}`, settingsHref: `/projects/${id}/settings` };
+}
+
+export const THREADS: readonly PluginSidebarThread[] = [
+  sidebarThread("thr_acme", "proj_acme"),
+  sidebarThread("thr_globex", "proj_globex"),
+  sidebarThread("thr_archived", "proj_globex", { isArchived: true, archivedAt: 1 }),
+];
+
+function sidebarThread(id: string, projectId: string, overrides: Partial<PluginSidebarThread> = {}): PluginSidebarThread {
+  return {
+    id,
+    projectId,
+    title: id,
+    titleFallback: null,
+    displayTitle: id,
+    parentThreadId: null,
+    lifecycleOwnerThreadId: null,
+    sourceThreadId: null,
+    sectionId: null,
+    originKind: null,
+    originPluginId: null,
+    providerId: "claude-code",
+    status: "idle",
+    runtimeStatus: "idle",
+    queuedWork: "none",
+    hasPendingInteraction: false,
+    activity: { workflows: 0, backgroundAgents: 0, backgroundCommands: 0, planMode: 0, goals: 0 },
+    indicator: "none",
+    indicatorLabel: null,
+    isUnread: false,
+    isPinned: false,
+    pinnedAt: null,
+    pinSortKey: null,
+    isArchived: false,
+    archivedAt: null,
+    href: `/projects/${projectId}/threads/${id}`,
+    isHidden: false,
+    environment: null,
+    host: null,
+    createdAt: 0,
+    updatedAt: 0,
+    lastReadAt: null,
+    latestAttentionAt: 0,
+    ...overrides,
+  };
 }
 
 interface SeedWorkspace {

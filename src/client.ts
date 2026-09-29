@@ -1,4 +1,5 @@
 import {
+  experimental_usePluginId,
   experimental_useSidebarThreads,
   useBbNavigate,
   useRealtime,
@@ -23,18 +24,20 @@ import { toast } from "sonner";
 import type { SaveInput, rpcContract } from "../server";
 import {
   ALL,
+  LastThreadsSchema,
   OPEN_MASK,
   ProjectIdSchema,
   ThreadIdSchema,
   WORKSPACES_CHANGED,
   WorkspaceIdSchema,
   WorkspacesChangedSchema,
+  landingForPick,
   resolveBoard,
   sameSelection,
   selectionAtTile,
   selectionForRoute,
-  showsRoute,
   stepSelection,
+  threadToRemember,
   toDoc,
   toWireSelection,
   type Board,
@@ -44,6 +47,7 @@ import {
   type Selection,
   type SidebarMask,
   type SidebarSnapshot,
+  type ThreadId,
   type ThreadRef,
   type WireDoc,
   type WorkspaceEntry,
@@ -99,7 +103,7 @@ export const useEditorTarget = (): EditorTarget | null =>
 export type BoardState =
   | { readonly status: "loading"; readonly mask: SidebarMask }
   | { readonly status: "error"; readonly mask: SidebarMask; readonly message: string; readonly retry: () => void }
-  | { readonly status: "ready"; readonly mask: SidebarMask; readonly board: Board };
+  | { readonly status: "ready"; readonly mask: SidebarMask; readonly board: Board; readonly threads: readonly ThreadRef[] };
 
 // The palette runs outside React, so the selection write uses the rpc client
 // the mounted overlay last bound.
@@ -245,8 +249,8 @@ export function useBoard(): BoardState {
       return { status: "error", mask: OPEN_MASK, message: failure, retry: () => void refetch() };
     }
     if (loading || board === null) return { status: "loading", mask: OPEN_MASK };
-    return { status: "ready", mask: board.mask, board };
-  }, [failure, loading, board, refetch]);
+    return { status: "ready", mask: board.mask, board, threads: snapshot.threads };
+  }, [failure, loading, board, snapshot, refetch]);
 }
 
 export function describeError(error: Error, action: string): string {
@@ -334,17 +338,62 @@ export function useFollowRoute(route: BbContext, ready: boolean): void {
   }, [projectId, threadId, ready]);
 }
 
-export function useLeaveHiddenRoute(route: BbContext): void {
+function readLastThreads(key: string): Map<WorkspaceId, ThreadId> {
+  try {
+    const stored = LastThreadsSchema.safeParse(JSON.parse(localStorage.getItem(key) ?? "[]"));
+    return new Map(stored.success ? stored.data : []);
+  } catch {
+    return new Map();
+  }
+}
+
+function rememberThread(key: string, [workspaceId, threadId]: readonly [WorkspaceId, ThreadId]): void {
+  const lastThreads = readLastThreads(key).set(workspaceId, threadId);
+  try {
+    localStorage.setItem(key, JSON.stringify([...lastThreads]));
+  } catch {}
+}
+
+const NO_THREADS: readonly ThreadRef[] = [];
+
+export function useReturnToLastThread(route: BbContext, state: BoardState): void {
   const navigate = useBbNavigate();
+  const key = `${experimental_usePluginId()}:last-threads`;
   const { projectId, threadId } = toRouteFocus(route);
+  const ready = state.status === "ready";
+  const threads = state.status === "ready" ? state.threads : NO_THREADS;
+  useEffect(() => {
+    const wire = queryClient.getQueryData(docKey);
+    if (!ready || wire === undefined) return;
+    const entry = threadToRemember(toDoc(wire), { projectId, threadId });
+    if (entry !== null) rememberThread(key, entry);
+  }, [key, projectId, threadId, ready]);
   useLayoutEffect(
     () =>
       localPicks.subscribe(() => {
-        const pick = localPicks.get();
         const wire = queryClient.getQueryData(docKey);
         if (wire === undefined) return;
-        if (!showsRoute({ ...toDoc(wire), selection: pick }, { projectId, threadId })) navigate.toCompose();
+        const landing = landingForPick({
+          doc: toDoc(wire),
+          pick: localPicks.get(),
+          route: { projectId, threadId },
+          lastThreads: readLastThreads(key),
+          threads,
+        });
+        switch (landing.kind) {
+          case "stay":
+            break;
+          case "thread":
+            navigate.toThread(landing.id);
+            break;
+          case "compose":
+            navigate.toCompose();
+            break;
+          default: {
+            const _exhaustive: never = landing;
+          }
+        }
       }),
-    [navigate, projectId, threadId],
+    [navigate, key, projectId, threadId, threads],
   );
 }
