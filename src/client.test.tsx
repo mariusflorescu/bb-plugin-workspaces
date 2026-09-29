@@ -2,10 +2,10 @@
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { act, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PROJECTS, fakeBackend } from "../test/fake-backend";
+import { PROJECTS, THREADS, fakeBackend } from "../test/fake-backend";
 import "../test/ui-lifecycle";
-import { selectWorkspace, useBoard, useFollowRoute, useLeaveHiddenRoute, useSaveWorkspace } from "./client";
-import { HexColorSchema, WorkspaceIdSchema, WorkspaceNameSchema } from "./domain";
+import { selectWorkspace, useBoard, useFollowRoute, useReturnToLastThread, useSaveWorkspace } from "./client";
+import { ALL, HexColorSchema, WorkspaceIdSchema, WorkspaceNameSchema } from "./domain";
 import { WorkspacesProvider } from "./ui/WorkspacesProvider";
 
 function BoardText() {
@@ -56,8 +56,9 @@ interface Route {
 }
 
 function RouteFollower({ route }: { readonly route: Route }) {
-  useFollowRoute(route, useBoard().status === "ready");
-  useLeaveHiddenRoute(route);
+  const state = useBoard();
+  useFollowRoute(route, state.status === "ready");
+  useReturnToLastThread(route, state);
   return null;
 }
 
@@ -148,25 +149,6 @@ describe("useBoard", () => {
     ]);
   });
 
-  it("never leaves a route it follows, then leaves when this window picks a workspace that hides it", async () => {
-    const backend = await fakeBackend(SEED);
-    const options = { rpc: backend.rpc, sidebarThreads: { projects: PROJECTS } };
-    const slot = renderSlot({ component: RouteProbe }, { route: { threadId: null, projectId: null } }, options);
-    const go = async (route: Route, expected: string) => {
-      slot.lifecycle.rerender(<RouteProbe route={route} />);
-      expect(await slot.findByText(`active: ${expected}`)).toBeTruthy();
-    };
-    await slot.findByText("active: All");
-
-    await go({ threadId: "thr_1", projectId: "proj_globex" }, "Globex");
-    await go({ threadId: "thr_2", projectId: "proj_acme" }, "Acme");
-    await go({ threadId: null, projectId: "proj_new" }, "All");
-    expect(slot.inspection.navigateCalls).toEqual([]);
-
-    act(() => selectWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("globex") }));
-    expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose" }]);
-  });
-
   it("follows the thread a cold load lands on", async () => {
     const backend = await fakeBackend(SEED);
     await backend.harness.behavior.callRpc("selection_set", { id: "globex" });
@@ -234,5 +216,126 @@ describe("useBoard", () => {
       },
     );
     expect(await slot.findByText("Couldn't load your workspaces.")).toBeTruthy();
+  });
+});
+
+describe("landing on a pick", () => {
+  const NOWHERE: Route = { threadId: null, projectId: null };
+  const ON_ACME: Route = { threadId: "thr_acme", projectId: "proj_acme" };
+  const ON_GLOBEX: Route = { threadId: "thr_globex", projectId: "proj_globex" };
+
+  function mountRoutes(backend: Awaited<ReturnType<typeof fakeBackend>>, route: Route) {
+    const slot = renderSlot(
+      { component: RouteProbe },
+      { route },
+      { rpc: backend.rpc, sidebarThreads: { projects: PROJECTS, threads: THREADS }, pluginId: "workspaces" },
+    );
+    const go = async (next: Route, expected: string) => {
+      slot.lifecycle.rerender(<RouteProbe route={next} />);
+      expect(await slot.findByText(`active: ${expected}`)).toBeTruthy();
+    };
+    const pick = async (id: string | null, expected: string) => {
+      act(() => selectWorkspace(id === null ? ALL : { kind: "workspace", id: WorkspaceIdSchema.parse(id) }));
+      expect(await slot.findByText(`active: ${expected}`)).toBeTruthy();
+    };
+    return { slot, go, pick };
+  }
+
+  it("returns to each workspace's last thread, and stays for All and for the workspace on screen", async () => {
+    const { slot, go, pick } = mountRoutes(await fakeBackend(SEED), NOWHERE);
+    await slot.findByText("active: All");
+
+    await go(ON_ACME, "Acme");
+    await pick("globex", "Globex");
+    await go(NOWHERE, "Globex");
+    await pick("acme", "Acme");
+    await go(ON_ACME, "Acme");
+    await go(ON_GLOBEX, "Globex");
+    await pick("acme", "Acme");
+    await go(ON_ACME, "Acme");
+    await pick("globex", "Globex");
+    await go(ON_GLOBEX, "Globex");
+    await pick(null, "All");
+    await pick("globex", "Globex");
+
+    expect(slot.inspection.navigateCalls).toEqual([
+      { method: "toCompose" },
+      { method: "toThread", threadId: "thr_acme" },
+      { method: "toThread", threadId: "thr_acme" },
+      { method: "toThread", threadId: "thr_globex" },
+    ]);
+  });
+
+  it("never moves off a route it follows, a project page included, then lands this window's pick", async () => {
+    const { slot, go, pick } = mountRoutes(await fakeBackend(SEED), NOWHERE);
+    await slot.findByText("active: All");
+
+    await go(ON_GLOBEX, "Globex");
+    await go(ON_ACME, "Acme");
+    await go({ threadId: null, projectId: "proj_globex" }, "Globex");
+    await go({ threadId: null, projectId: "proj_acme" }, "Acme");
+    await go({ threadId: null, projectId: "proj_new" }, "All");
+    expect(slot.inspection.navigateCalls).toEqual([]);
+
+    await pick("globex", "Globex");
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "toThread", threadId: "thr_globex" }]);
+  });
+
+  it("stays when another window switches workspaces, and lands when this window picks the same one", async () => {
+    const backend = await fakeBackend(SEED);
+    const { slot, go, pick } = mountRoutes(backend, ON_GLOBEX);
+    await slot.findByText("active: Globex");
+    await go(ON_ACME, "Acme");
+
+    await backend.harness.behavior.callRpc("selection_set", { id: "globex" });
+    await slot.behavior.emitRealtime("workspaces-changed", { kind: "selection", selectedWorkspaceId: "globex" });
+    expect(await slot.findByText("active: Globex")).toBeTruthy();
+    expect(slot.inspection.navigateCalls).toEqual([]);
+
+    await pick("globex", "Globex");
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "toThread", threadId: "thr_globex" }]);
+  });
+
+  it("falls back to the new-thread screen when the last thread was archived", async () => {
+    const { slot, go, pick } = mountRoutes(await fakeBackend(SEED), { threadId: "thr_archived", projectId: "proj_globex" });
+    await slot.findByText("active: Globex");
+    await go(ON_ACME, "Acme");
+
+    await pick("globex", "Globex");
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose" }]);
+  });
+
+  it("falls back once the last thread's project is filed in another workspace", async () => {
+    const backend = await fakeBackend(SEED);
+    const { slot, go, pick } = mountRoutes(backend, ON_ACME);
+    await slot.findByText("active: Acme");
+    await go(ON_GLOBEX, "Globex");
+    await pick("acme", "Acme");
+    await go(ON_ACME, "Acme");
+    await go(ON_GLOBEX, "Globex");
+
+    await backend.harness.behavior.runCli(["assign", "proj_acme", "globex"]);
+    await slot.behavior.emitRealtime("workspaces-changed", null);
+    expect(await slot.findByText("hidden: proj_new, proj_personal")).toBeTruthy();
+    await pick("acme", "Acme");
+
+    expect(slot.inspection.navigateCalls).toEqual([
+      { method: "toThread", threadId: "thr_acme" },
+      { method: "toCompose" },
+    ]);
+  });
+
+  it.each([
+    { name: "a stored thread", stored: JSON.stringify([["acme", "thr_acme"]]), expected: [{ method: "toThread", threadId: "thr_acme" }] },
+    { name: "text that isn't JSON", stored: "{acme: thr_acme", expected: [{ method: "toCompose" }] },
+    { name: "an object instead of pairs", stored: JSON.stringify({ acme: "thr_acme" }), expected: [{ method: "toCompose" }] },
+    { name: "an id BB can't have made", stored: JSON.stringify([["acme", "thr acme"]]), expected: [{ method: "toCompose" }] },
+  ])("reads the memory an earlier session left: $name", async ({ stored, expected }) => {
+    localStorage.setItem("workspaces:last-threads", stored);
+    const { slot, pick } = mountRoutes(await fakeBackend(SEED), ON_GLOBEX);
+    await slot.findByText("active: Globex");
+
+    await pick("acme", "Acme");
+    expect(slot.inspection.navigateCalls).toEqual(expected);
   });
 });

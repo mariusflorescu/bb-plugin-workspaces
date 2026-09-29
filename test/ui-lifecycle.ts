@@ -9,5 +9,6 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   queryClient.clear();
+  localStorage.clear();
   act(() => closeEditor());
 });

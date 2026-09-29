@@ -252,6 +252,8 @@ export function showsRoute(doc: WorkspaceDoc, route: RouteFocus): boolean {
   return selection.kind === "all" || route.projectId === null || liveOwner(doc, route.projectId) === selection.id;
 }
 
+export const LastThreadsSchema = z.array(z.tuple([WorkspaceIdSchema, ThreadIdSchema]));
+
 export function threadToRemember(
   doc: Pick<WorkspaceDoc, "workspaces" | "owner">,
   route: RouteFocus,
