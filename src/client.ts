@@ -147,7 +147,7 @@ function writeSelection(next: Selection): void {
 
 const localPicks = createStore<Selection>(ALL);
 
-export function selectWorkspace(next: Selection): void {
+export function pickWorkspace(next: Selection): void {
   writeSelection(next);
   localPicks.set(next);
 }
@@ -300,14 +300,14 @@ export function canStep(): boolean {
 export function stepWorkspace(delta: 1 | -1): void {
   const wire = queryClient.getQueryData(docKey);
   if (wire === undefined || wire.workspaces.length === 0) return;
-  selectWorkspace(stepSelection(toDoc(wire), delta));
+  pickWorkspace(stepSelection(toDoc(wire), delta));
 }
 
 export const hasTile = (tile: NumberedTile): boolean => selectionAtTile(railDoc(), tile) !== null;
 
 export function selectTile(tile: NumberedTile): void {
   const target = selectionAtTile(railDoc(), tile);
-  if (target !== null) selectWorkspace(target);
+  if (target !== null) pickWorkspace(target);
 }
 
 const NEITHER: RouteFocus = { projectId: null, threadId: null };

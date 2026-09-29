@@ -1,5 +1,5 @@
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
-import { canStep, hasTile, openCreateEditor, selectTile, selectWorkspace, stepWorkspace } from "./src/client";
+import { canStep, hasTile, openCreateEditor, selectTile, pickWorkspace, stepWorkspace } from "./src/client";
 import { ALL, NUMBERED_TILES } from "./src/domain";
 import { tileShortcut } from "./src/shortcuts";
 import { RailOverlay } from "./src/ui/RailOverlay";
@@ -34,7 +34,7 @@ export default definePluginApp((app) => {
     id: "all-workspaces",
     title: "Workspaces: Show all workspaces",
     defaultShortcut: tileShortcut(1),
-    run: () => selectWorkspace(ALL),
+    run: () => pickWorkspace(ALL),
   });
   for (const tile of NUMBERED_TILES.slice(1)) {
     app.commands.register({
