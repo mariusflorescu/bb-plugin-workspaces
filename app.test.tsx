@@ -69,3 +69,35 @@ it("offers a tile's command only while that tile exists, and switches to it", as
   await command("all-workspaces").run(context);
   await vi.waitFor(() => expect(rail.getByRole("button", { name: "All workspaces" }).getAttribute("aria-pressed")).toBe("true"));
 });
+
+it("leaves a chat for the new-thread screen when a palette command hides it, and stays for Show all workspaces", async () => {
+  await loadPluginApp(() => import("./app"));
+  const { commandPaletteActions } = collectPluginAppRegistrations((await import("./app")).default);
+  const context = { threadId: null, projectId: null, openPanel: () => false };
+  const run = (id: string) => {
+    const command = commandPaletteActions.find((candidate) => candidate.id === id);
+    if (command === undefined) throw new Error(`no command ${id}`);
+    return command.run(context);
+  };
+
+  const unmountLayout = mountBbDesktopLayout();
+  onTestFinished(unmountLayout);
+  const backend = await fakeBackend([
+    { id: "acme", name: "Acme", projectIds: ["proj_acme"] },
+    { id: "globex", name: "Globex", projectIds: ["proj_globex"] },
+  ]);
+  const slot = renderSlot(
+    { component: RailOverlay },
+    {},
+    { rpc: backend.rpc, sidebarThreads: { projects: PROJECTS }, context: { projectId: "proj_acme", threadId: "thr_acme" } },
+  );
+  const rail = within(slot.getByRole("navigation", { name: "Workspaces" }));
+  const acme = await rail.findByRole("button", { name: "Acme" });
+  await vi.waitFor(() => expect(acme.getAttribute("aria-pressed")).toBe("true"));
+
+  await run("all-workspaces");
+  await vi.waitFor(() => expect(rail.getByRole("button", { name: "All workspaces" }).getAttribute("aria-pressed")).toBe("true"));
+  expect(slot.inspection.navigateCalls).toEqual([]);
+  await run("switch-to-tile-3");
+  expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose" }]);
+});

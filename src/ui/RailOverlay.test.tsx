@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { renderSlot, type RenderSlotOptions } from "@get-bb/plugin-sdk/testing/app";
 import { act, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,8 +18,8 @@ const SEED = [
   { id: "globex", name: "Globex", color: "#0d9488", projectIds: ["proj_globex"] },
 ];
 
-function mountRail(rpc: Partial<FakeRpc>) {
-  const slot = renderSlot({ component: RailOverlay }, {}, { rpc, sidebarThreads: { projects: PROJECTS } });
+function mountRail(rpc: Partial<FakeRpc>, context?: RenderSlotOptions["context"]) {
+  const slot = renderSlot({ component: RailOverlay }, {}, { rpc, sidebarThreads: { projects: PROJECTS }, context });
   const rail = () => within(slot.getByRole("navigation", { name: "Workspaces" }));
   const stylesheet = () => slot.container.querySelector("style")?.textContent ?? "";
   return { slot, rail, stylesheet };
@@ -284,5 +284,39 @@ describe("the rail", () => {
       ]),
     );
     expect(document.activeElement).toBe(rail().getByRole("button", { name: "Globex" }));
+  });
+});
+
+describe("switching away from the chat on screen", () => {
+  const ON_ACME_THREAD = { projectId: "proj_acme", threadId: "thr_acme" };
+  const pressed = (tile: HTMLElement) => vi.waitFor(() => expect(tile.getAttribute("aria-pressed")).toBe("true"));
+
+  it("follows the chat's workspace on load, stays for that workspace and All, and leaves for another workspace", async () => {
+    const backend = await fakeBackend(SEED);
+    const { slot, rail } = mountRail(backend.rpc, ON_ACME_THREAD);
+    const acme = await rail().findByRole("button", { name: "Acme" });
+    await pressed(acme);
+    fireEvent.click(rail().getByRole("button", { name: "All workspaces" }));
+    await pressed(rail().getByRole("button", { name: "All workspaces" }));
+    fireEvent.click(acme);
+    await pressed(acme);
+    expect(slot.inspection.navigateCalls).toEqual([]);
+
+    fireEvent.click(rail().getByRole("button", { name: "Globex" }));
+    await pressed(rail().getByRole("button", { name: "Globex" }));
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose" }]);
+  });
+
+  it("stays when another window switches workspaces, and leaves when this window picks the same one", async () => {
+    const backend = await fakeBackend(SEED);
+    const { slot, rail } = mountRail(backend.rpc, ON_ACME_THREAD);
+    await pressed(await rail().findByRole("button", { name: "Acme" }));
+    await backend.harness.behavior.callRpc("selection_set", { id: "globex" });
+    await slot.behavior.emitRealtime("workspaces-changed", { kind: "selection", selectedWorkspaceId: "globex" });
+    await pressed(rail().getByRole("button", { name: "Globex" }));
+    expect(slot.inspection.navigateCalls).toEqual([]);
+
+    act(() => selectWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("globex") }));
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose" }]);
   });
 });
