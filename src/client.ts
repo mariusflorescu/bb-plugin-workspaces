@@ -1,8 +1,10 @@
 import {
   experimental_useSidebarThreads,
+  useBbNavigate,
   useRealtime,
   useRealtimeConnectionState,
   useRpc,
+  type BbContext,
   type PluginRpcClient,
   type PluginSidebarProject,
   type PluginSidebarThread,
@@ -16,10 +18,11 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import type { SaveInput, rpcContract } from "../server";
 import {
+  ALL,
   OPEN_MASK,
   ProjectIdSchema,
   ThreadIdSchema,
@@ -30,18 +33,17 @@ import {
   sameSelection,
   selectionAtTile,
   selectionForRoute,
+  showsRoute,
   stepSelection,
   toDoc,
   toWireSelection,
   type Board,
   type NumberedTile,
-  type ProjectId,
   type ProjectRef,
   type RouteFocus,
   type Selection,
   type SidebarMask,
   type SidebarSnapshot,
-  type ThreadId,
   type ThreadRef,
   type WireDoc,
   type WorkspaceEntry,
@@ -135,8 +137,11 @@ const selectionObserver = new MutationObserver<WireDoc, Error, Selection, { prev
   },
 );
 
+const localPicks = createStore<Selection>(ALL);
+
 export function selectWorkspace(next: Selection): void {
   selectionObserver.mutate(next).catch(() => undefined);
+  localPicks.set(next);
 }
 
 /** Every write returns the whole doc, which lands after this; a re-read now would flash older state. */
@@ -299,16 +304,19 @@ export function selectTile(tile: NumberedTile): void {
 
 const NEITHER: RouteFocus = { projectId: null, threadId: null };
 
+function toRouteFocus(route: BbContext): RouteFocus {
+  const projectId = ProjectIdSchema.safeParse(route.projectId);
+  const threadId = ThreadIdSchema.safeParse(route.threadId);
+  return { projectId: projectId.success ? projectId.data : null, threadId: threadId.success ? threadId.data : null };
+}
+
 /**
  * Only a change of the route's (thread, project) pair moves the selection; a
  * tile pick alone never does. The pair starts as neither, so the route a
  * reload, deep link or notification lands on is followed too.
  */
-export function useFollowRoute(route: { readonly projectId: string | null; readonly threadId: string | null }, ready: boolean): void {
-  const parsedProject = ProjectIdSchema.safeParse(route.projectId);
-  const parsedThread = ThreadIdSchema.safeParse(route.threadId);
-  const projectId: ProjectId | null = parsedProject.success ? parsedProject.data : null;
-  const threadId: ThreadId | null = parsedThread.success ? parsedThread.data : null;
+export function useFollowRoute(route: BbContext, ready: boolean): void {
+  const { projectId, threadId } = toRouteFocus(route);
   const baseline = useRef<RouteFocus>(NEITHER);
   useEffect(() => {
     const wire = queryClient.getQueryData(docKey);
@@ -320,4 +328,19 @@ export function useFollowRoute(route: { readonly projectId: string | null; reado
     const target = selectionForRoute(doc, { projectId, threadId });
     if (target !== "unchanged" && !sameSelection(target, doc.selection)) selectWorkspace(target);
   }, [projectId, threadId, ready]);
+}
+
+export function useLeaveHiddenRoute(route: BbContext): void {
+  const navigate = useBbNavigate();
+  const { projectId, threadId } = toRouteFocus(route);
+  useLayoutEffect(
+    () =>
+      localPicks.subscribe(() => {
+        const pick = localPicks.get();
+        const wire = queryClient.getQueryData(docKey);
+        if (wire === undefined) return;
+        if (!showsRoute({ ...toDoc(wire), selection: pick }, { projectId, threadId })) navigate.toCompose();
+      }),
+    [navigate, projectId, threadId],
+  );
 }

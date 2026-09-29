@@ -4,7 +4,7 @@ import { act, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PROJECTS, fakeBackend } from "../test/fake-backend";
 import "../test/ui-lifecycle";
-import { selectWorkspace, useBoard, useFollowRoute, useSaveWorkspace } from "./client";
+import { selectWorkspace, useBoard, useFollowRoute, useLeaveHiddenRoute, useSaveWorkspace } from "./client";
 import { HexColorSchema, WorkspaceIdSchema, WorkspaceNameSchema } from "./domain";
 import { WorkspacesProvider } from "./ui/WorkspacesProvider";
 
@@ -57,6 +57,7 @@ interface Route {
 
 function RouteFollower({ route }: { readonly route: Route }) {
   useFollowRoute(route, useBoard().status === "ready");
+  useLeaveHiddenRoute(route);
   return null;
 }
 
@@ -145,6 +146,25 @@ describe("useBoard", () => {
       { id: "acme" },
       { id: null },
     ]);
+  });
+
+  it("never leaves a route it follows, then leaves when this window picks a workspace that hides it", async () => {
+    const backend = await fakeBackend(SEED);
+    const options = { rpc: backend.rpc, sidebarThreads: { projects: PROJECTS } };
+    const slot = renderSlot({ component: RouteProbe }, { route: { threadId: null, projectId: null } }, options);
+    const go = async (route: Route, expected: string) => {
+      slot.lifecycle.rerender(<RouteProbe route={route} />);
+      expect(await slot.findByText(`active: ${expected}`)).toBeTruthy();
+    };
+    await slot.findByText("active: All");
+
+    await go({ threadId: "thr_1", projectId: "proj_globex" }, "Globex");
+    await go({ threadId: "thr_2", projectId: "proj_acme" }, "Acme");
+    await go({ threadId: null, projectId: "proj_new" }, "All");
+    expect(slot.inspection.navigateCalls).toEqual([]);
+
+    act(() => selectWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("globex") }));
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose" }]);
   });
 
   it("follows the thread a cold load lands on", async () => {
