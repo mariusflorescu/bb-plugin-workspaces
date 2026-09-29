@@ -252,6 +252,39 @@ export function showsRoute(doc: WorkspaceDoc, route: RouteFocus): boolean {
   return selection.kind === "all" || route.projectId === null || liveOwner(doc, route.projectId) === selection.id;
 }
 
+export function threadToRemember(
+  doc: Pick<WorkspaceDoc, "workspaces" | "owner">,
+  route: RouteFocus,
+): readonly [WorkspaceId, ThreadId] | null {
+  if (route.threadId === null || route.projectId === null) return null;
+  const owner = liveOwner(doc, route.projectId);
+  return owner === null ? null : [owner, route.threadId];
+}
+
+export type Landing =
+  | { readonly kind: "stay" }
+  | { readonly kind: "thread"; readonly id: ThreadId }
+  | { readonly kind: "compose" };
+
+export function landingForPick(input: {
+  readonly doc: Pick<WorkspaceDoc, "workspaces" | "owner">;
+  readonly pick: Selection;
+  readonly route: RouteFocus;
+  readonly lastThreads: ReadonlyMap<WorkspaceId, ThreadId>;
+  readonly threads: readonly ThreadRef[];
+}): Landing {
+  const { route } = input;
+  const doc = { ...input.doc, selection: input.pick };
+  const selection = liveSelection(doc);
+  if (selection.kind === "all") return { kind: "stay" };
+  const shown = showsRoute(doc, route);
+  if (shown && route.threadId !== null) return { kind: "stay" };
+  const lastId = input.lastThreads.get(selection.id);
+  const last = input.threads.find((thread) => thread.id === lastId);
+  if (last !== undefined && liveOwner(doc, last.projectId) === selection.id) return { kind: "thread", id: last.id };
+  return shown ? { kind: "stay" } : { kind: "compose" };
+}
+
 export function sameSelection(a: Selection, b: Selection): boolean {
   return a.kind === "all" ? b.kind === "all" : b.kind === "workspace" && a.id === b.id;
 }

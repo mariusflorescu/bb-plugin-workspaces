@@ -17,6 +17,8 @@ import {
   showsRoute,
   stepSelection,
   hidesAnything,
+  landingForPick,
+  threadToRemember,
   type Board,
   type ProjectId,
   type Selection,
@@ -200,6 +202,49 @@ describe("showsRoute", () => {
   ])("$name", ({ selection, threadId, projectId, expected }) => {
     const route = { threadId: threadId === null ? null : tid(threadId), projectId: projectId === null ? null : pid(projectId) };
     expect(showsRoute(doc(selection), route)).toBe(expected);
+  });
+});
+
+const route = (threadId: string | null, projectId: string | null) => ({
+  threadId: threadId === null ? null : tid(threadId),
+  projectId: projectId === null ? null : pid(projectId),
+});
+
+describe("threadToRemember", () => {
+  it.each([
+    { name: "a thread in a filed project, under its workspace", threadId: "t_acme1", projectId: "acme1", expected: ["acme", "t_acme1"] },
+    { name: "not a thread in an unfiled project", threadId: "t_personal", projectId: "personal", expected: null },
+    { name: "not a thread whose project's workspace was deleted", threadId: "t_new1", projectId: "new1", expected: null },
+    { name: "not a thread with no project", threadId: "t_orphan", projectId: null, expected: null },
+    { name: "not a project page", threadId: null, projectId: "acme2", expected: null },
+  ])("remembers $name", ({ threadId, projectId, expected }) => {
+    expect(threadToRemember(doc(), route(threadId, projectId))).toEqual(expected);
+  });
+});
+
+describe("landingForPick", () => {
+  const BOTH: readonly (readonly [string, string])[] = [["acme", "t_acme1"], ["globex", "t_globex1"]];
+  it.each([
+    { name: "All workspaces stays", selection: ALL, on: route("t_globex1", "globex1"), last: BOTH, expected: { kind: "stay" } },
+    { name: "a pick that shows the thread on screen stays", selection: pick("acme"), on: route("t_acme_new", "acme2"), last: BOTH, expected: { kind: "stay" } },
+    { name: "a pick that hides the thread goes to its last thread", selection: pick("globex"), on: route("t_acme1", "acme1"), last: BOTH, expected: { kind: "thread", id: "t_globex1" } },
+    { name: "a pick from the new-thread screen goes to its last thread", selection: pick("acme"), on: route(null, null), last: BOTH, expected: { kind: "thread", id: "t_acme1" } },
+    { name: "a pick from its own project page goes to its last thread", selection: pick("acme"), on: route(null, "acme2"), last: BOTH, expected: { kind: "thread", id: "t_acme1" } },
+    { name: "a pick with no memory that hides the thread goes to the new-thread screen", selection: pick("globex"), on: route("t_acme1", "acme1"), last: [["acme", "t_acme1"]], expected: { kind: "compose" } },
+    { name: "a pick with no memory stays on the new-thread screen", selection: pick("globex"), on: route(null, null), last: [], expected: { kind: "stay" } },
+    { name: "a remembered thread gone from the sidebar falls back", selection: pick("acme"), on: route("t_globex1", "globex1"), last: [["acme", "t_archived"]], expected: { kind: "compose" } },
+    { name: "a thread with no project stays", selection: pick("acme"), on: route("t_loose", null), last: BOTH, expected: { kind: "stay" } },
+    { name: "a selection naming a deleted workspace stays", selection: pick("deleted_workspace"), on: route("t_acme1", "acme1"), last: BOTH, expected: { kind: "stay" } },
+  ])("$name", ({ selection, on, last, expected }) => {
+    const lastThreads = new Map(last.map(([workspace, thread]) => [wid(workspace), tid(thread)]));
+    expect(landingForPick({ doc: doc(), pick: selection, route: on, lastThreads, threads: SIDEBAR.threads })).toEqual(expected);
+  });
+
+  it("falls back when the remembered thread's project moved to another workspace", () => {
+    const lastThreads = new Map([[wid("acme"), tid("t_acme1")]]);
+    const input = { pick: pick("acme"), route: route("t_globex1", "globex1"), lastThreads, threads: SIDEBAR.threads };
+    expect(landingForPick({ ...input, doc: doc() })).toEqual({ kind: "thread", id: "t_acme1" });
+    expect(landingForPick({ ...input, doc: doc(ALL, [["acme1", "globex"]]) })).toEqual({ kind: "compose" });
   });
 });
 
