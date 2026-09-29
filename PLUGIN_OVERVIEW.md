@@ -5,7 +5,7 @@ Workspaces puts a narrow column at the far left of BB, before the sidebar, with 
 - **A tile per workspace.** Each shows its initials on its color, or an image you choose. Right-click a tile, or press and hold it on a phone, to edit, move or delete it.
 - **Color that is quick to pick.** The color swatch opens twelve presets and a custom picker with a hex field.
 - **Projects filed once.** A project belongs to one workspace. Ticking a project that is filed elsewhere moves it.
-- **One selection everywhere.** Every window and device shows the same workspace, and opening a thread from another client's project switches to that client.
+- **One selection everywhere.** Every window and device shows the same workspace, and opening a thread from another client's project switches to that client. Switch to a workspace that doesn't hold the open chat and that window shows BB's new-thread screen instead.
 - **On a phone too.** Open BB's sidebar and the column is its first column; everything works by touch. With the desktop sidebar collapsed, use **Workspaces** in the sidebar footer or the palette commands *Next workspace*, *Previous workspace*, *Show all workspaces*, *Switch workspace* and *New workspace*.
 
 ## For agents
