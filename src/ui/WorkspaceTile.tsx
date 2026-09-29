@@ -48,7 +48,7 @@ export function WorkspaceTile({
           }
           shortcut={shortcut}
           active={active}
-          onClick={active ? undefined : onSelect}
+          onClick={onSelect}
           onKeyDown={(event) => {
             if (!event.shiftKey || event.key !== "F10") return;
             // Chromium on macOS never turns Shift+F10 into contextmenu; elsewhere preventDefault stops its own.

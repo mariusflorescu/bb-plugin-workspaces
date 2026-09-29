@@ -4,7 +4,7 @@ import { act, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mountBbCompactLayout, mountBbDesktopLayout, threadRow } from "../../test/bb-layout";
-import { PROJECTS, fakeBackend, type FakeRpc } from "../../test/fake-backend";
+import { PROJECTS, THREADS, fakeBackend, type FakeRpc } from "../../test/fake-backend";
 import "../../test/ui-lifecycle";
 import { pickWorkspace } from "../client";
 import { FILTER_WARNING_ATTR } from "../shell-css";
@@ -19,7 +19,11 @@ const SEED = [
 ];
 
 function mountRail(rpc: Partial<FakeRpc>, context?: RenderSlotOptions["context"]) {
-  const slot = renderSlot({ component: RailOverlay }, {}, { rpc, sidebarThreads: { projects: PROJECTS }, context });
+  const slot = renderSlot(
+    { component: RailOverlay },
+    {},
+    { rpc, sidebarThreads: { projects: PROJECTS, threads: THREADS }, pluginId: "workspaces", context },
+  );
   const rail = () => within(slot.getByRole("navigation", { name: "Workspaces" }));
   const stylesheet = () => slot.container.querySelector("style")?.textContent ?? "";
   return { slot, rail, stylesheet };
@@ -289,7 +293,18 @@ describe("the rail", () => {
 
 describe("switching away from the chat on screen", () => {
   const ON_ACME_THREAD = { projectId: "proj_acme", threadId: "thr_acme" };
+  const NEW_THREAD = { projectId: null, threadId: null };
   const pressed = (tile: HTMLElement) => vi.waitFor(() => expect(tile.getAttribute("aria-pressed")).toBe("true"));
+
+  async function mountWithAcmeSelected(context: RenderSlotOptions["context"]) {
+    localStorage.setItem("workspaces:last-threads", JSON.stringify([["acme", "thr_acme"]]));
+    const backend = await fakeBackend(SEED);
+    await backend.harness.behavior.callRpc("selection_set", { id: "acme" });
+    const { slot, rail } = mountRail(backend.rpc, context);
+    const acme = await rail().findByRole("button", { name: "Acme" });
+    await pressed(acme);
+    return { slot, acme };
+  }
 
   it("follows the chat's workspace on load, stays for that workspace and All, and leaves for another workspace", async () => {
     const backend = await fakeBackend(SEED);
@@ -318,5 +333,31 @@ describe("switching away from the chat on screen", () => {
 
     act(() => pickWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("globex") }));
     expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose" }]);
+  });
+
+  it.each([
+    { screen: "the new-thread screen", route: NEW_THREAD, navigated: [{ method: "toThread", threadId: "thr_acme" }] },
+    { screen: "its own thread", route: ON_ACME_THREAD, navigated: [] },
+  ])("re-picks the selected workspace on a click from $screen", async ({ route, navigated }) => {
+    const { slot, acme } = await mountWithAcmeSelected(route);
+    fireEvent.click(acme);
+    expect(slot.inspection.navigateCalls).toEqual(navigated);
+  });
+
+  it("opens the selected tile's actions on a long-press without re-picking, and re-picks on a tap once they close", async () => {
+    const { slot, acme } = await mountWithAcmeSelected(NEW_THREAD);
+    const user = userEvent.setup();
+    await user.pointer({ keys: "[TouchA>]", target: acme });
+    await slot.findByRole("menu", {}, { timeout: 1500 });
+    await user.pointer({ keys: "[/TouchA]", target: document.documentElement });
+    expect(menuItems(slot.getByRole("menu"))).toEqual(["Edit…", "Move up (disabled)", "Move down", "Delete…"]);
+    expect(acme.getAttribute("aria-pressed")).toBe("true");
+    expect(slot.inspection.navigateCalls).toEqual([]);
+    await expect(userEvent.pointer({ keys: "[TouchA]", target: acme })).rejects.toThrow("`pointer-events: none`");
+
+    await user.keyboard("{Escape}");
+    await vi.waitFor(() => expect(slot.queryByRole("menu")).toBeNull());
+    await user.pointer({ keys: "[TouchA]", target: acme });
+    expect(slot.inspection.navigateCalls).toEqual([{ method: "toThread", threadId: "thr_acme" }]);
   });
 });
