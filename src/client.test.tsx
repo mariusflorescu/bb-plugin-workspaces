@@ -4,7 +4,7 @@ import { act, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PROJECTS, THREADS, fakeBackend } from "../test/fake-backend";
 import "../test/ui-lifecycle";
-import { selectWorkspace, useBoard, useFollowRoute, useReturnToLastThread, useSaveWorkspace } from "./client";
+import { pickWorkspace, useBoard, useFollowRoute, useReturnToLastThread, useSaveWorkspace } from "./client";
 import { ALL, HexColorSchema, WorkspaceIdSchema, WorkspaceNameSchema } from "./domain";
 import { WorkspacesProvider } from "./ui/WorkspacesProvider";
 
@@ -19,7 +19,7 @@ function BoardText() {
       <p>active: {board.active.kind === "all" ? "All" : board.active.entry.workspace.name}</p>
       <p>rail: {board.entries.map((entry) => entry.workspace.name).join(", ")}</p>
       <p>hidden: {[...state.mask.hiddenProjects].join(", ") || "none"}</p>
-      <button type="button" onClick={() => selectWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("acme") })}>
+      <button type="button" onClick={() => pickWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("acme") })}>
         pick Acme
       </button>
       <button
@@ -121,7 +121,7 @@ describe("useBoard", () => {
       expect(await slot.findByText(`active: ${expected}`)).toBeTruthy();
     };
     const pick = async (id: string, expected: string) => {
-      act(() => selectWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse(id) }));
+      act(() => pickWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse(id) }));
       expect(await slot.findByText(`active: ${expected}`)).toBeTruthy();
     };
     await slot.findByText("active: All");
@@ -235,7 +235,7 @@ describe("landing on a pick", () => {
       expect(await slot.findByText(`active: ${expected}`)).toBeTruthy();
     };
     const pick = async (id: string | null, expected: string) => {
-      act(() => selectWorkspace(id === null ? ALL : { kind: "workspace", id: WorkspaceIdSchema.parse(id) }));
+      act(() => pickWorkspace(id === null ? ALL : { kind: "workspace", id: WorkspaceIdSchema.parse(id) }));
       expect(await slot.findByText(`active: ${expected}`)).toBeTruthy();
     };
     return { slot, go, pick };

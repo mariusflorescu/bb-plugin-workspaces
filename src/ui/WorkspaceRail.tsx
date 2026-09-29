@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Icon } from "@/components/ui/icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePortalScopeProps } from "@/lib/portal-scope";
-import { openCreateEditor, selectWorkspace, type BoardState } from "../client";
+import { openCreateEditor, pickWorkspace, type BoardState } from "../client";
 import { ALL, hidesAnything } from "../domain";
 import { RAIL_ATTR, RAIL_WIDTH_PX, SHELF_RAIL_ATTR } from "../shell-css";
 import { tileShortcutHint } from "../shortcuts";
@@ -45,7 +45,7 @@ export const WorkspaceRail = memo(function WorkspaceRail({
         active={active === null}
         unfiledCount={board?.unfiled.length ?? 0}
         shortcut={tileShortcutHint(1, navigator.platform)}
-        onSelect={() => selectWorkspace(ALL)}
+        onSelect={() => pickWorkspace(ALL)}
       />
       <div aria-hidden="true" className="my-2 h-px w-6 shrink-0 bg-border" />
       <ul className="flex min-h-0 w-full flex-1 flex-col items-center gap-2 overflow-y-auto py-0.5 [scrollbar-width:none]">
@@ -77,7 +77,7 @@ export const WorkspaceRail = memo(function WorkspaceRail({
               first={index === 0}
               last={index === board.entries.length - 1}
               shortcut={tileShortcutHint(index + 2, navigator.platform)}
-              onSelect={() => selectWorkspace({ kind: "workspace", id: entry.workspace.id })}
+              onSelect={() => pickWorkspace({ kind: "workspace", id: entry.workspace.id })}
             />
           </li>
         ))}

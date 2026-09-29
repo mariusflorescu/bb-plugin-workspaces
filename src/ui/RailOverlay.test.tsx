@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mountBbCompactLayout, mountBbDesktopLayout, threadRow } from "../../test/bb-layout";
 import { PROJECTS, fakeBackend, type FakeRpc } from "../../test/fake-backend";
 import "../../test/ui-lifecycle";
-import { selectWorkspace } from "../client";
+import { pickWorkspace } from "../client";
 import { FILTER_WARNING_ATTR } from "../shell-css";
 import { WorkspaceIdSchema } from "../domain";
 import { RailOverlay } from "./RailOverlay";
@@ -156,7 +156,7 @@ describe("the rail", () => {
     unmountLayout();
     const backend = await fakeBackend(SEED);
     const { slot, stylesheet } = mountRail(backend.rpc);
-    act(() => selectWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("acme") }));
+    act(() => pickWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("acme") }));
     await vi.waitFor(() => expect(stylesheet()).toContain('"project:proj_globex"'));
     expect(slot.queryByRole("navigation", { name: "Workspaces" })).toBeNull();
   });
@@ -316,7 +316,7 @@ describe("switching away from the chat on screen", () => {
     await pressed(rail().getByRole("button", { name: "Globex" }));
     expect(slot.inspection.navigateCalls).toEqual([]);
 
-    act(() => selectWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("globex") }));
+    act(() => pickWorkspace({ kind: "workspace", id: WorkspaceIdSchema.parse("globex") }));
     expect(slot.inspection.navigateCalls).toEqual([{ method: "toCompose" }]);
   });
 });

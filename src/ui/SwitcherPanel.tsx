@@ -2,7 +2,7 @@ import type { ExperimentalSidebarFooterDisclosureProps } from "@get-bb/plugin-sd
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import { openCreateEditor, openEditor, selectWorkspace, useBoard } from "../client";
+import { openCreateEditor, openEditor, pickWorkspace, useBoard } from "../client";
 import { ALL, hidesAnything, type Selection } from "../domain";
 import { FILTER_WARNING_ATTR } from "../shell-css";
 import { projectCount } from "./format";
@@ -15,7 +15,7 @@ const rowClass = cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-full mi
 export function SwitcherPanel({ dismiss }: ExperimentalSidebarFooterDisclosureProps) {
   const state = useBoard();
   const choose = (next: Selection) => {
-    selectWorkspace(next);
+    pickWorkspace(next);
     dismiss();
   };
   const create = () => {
