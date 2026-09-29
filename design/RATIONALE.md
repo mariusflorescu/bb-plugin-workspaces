@@ -216,7 +216,7 @@ What changed in the shape: `WorkspaceDoc` gains `selection`, `resolveBoard` take
 
 ## Tile actions only from the context menu (2026-09-28)
 
-The owner asked for a tile's actions (Edit…, Move up, Move down, Delete…) to open only from its context menu. A click or tap on the selected tile used to open the same four in a popover. That popover, its `role="menu"` markup, and `aria-haspopup` and `aria-expanded` on the selected tile are gone. A click selects a tile and does nothing on the selected one. Every tile's tooltip ends "right-click for actions", and the four menu items are written out once in `WorkspaceTile`, since the action table only existed so two menus could share it.
+The owner asked for a tile's actions (Edit…, Move up, Move down, Delete…) to open only from its context menu. A click or tap on the selected tile used to open the same four in a popover. That popover, its `role="menu"` markup, and `aria-haspopup` and `aria-expanded` on the selected tile are gone. A click selects a tile and does nothing on the selected one. Superseded by Re-picking the selected tile (2026-09-29). Every tile's tooltip ends "right-click for actions", and the four menu items are written out once in `WorkspaceTile`, since the action table only existed so two menus could share it.
 
 **The iOS premise didn't hold.** The popover existed because iOS doesn't fire `contextmenu` on a long-press. Radix's `ContextMenuTrigger` doesn't wait for that event on touch. For touch and pen pointers it starts its own 700 ms timer on `pointerdown` and opens the menu when the timer fires. It cancels the timer on `pointermove`, `pointerup` and `pointercancel`, and it sets `-webkit-touch-callout: none` so iOS shows no callout. `mobile-drive.cjs` holds a CDP touch for 900 ms and checks that the menu opens with no `contextmenu` event in the document, so the drive runs the timer path that iOS needs. In one probe the menu appeared about 790 ms after the touch started. The tap that ends the hold lands on `<html>`, because the open menu blocks pointer events outside it, so a long-press on a tile that isn't selected leaves the selection alone.
 
@@ -227,6 +227,10 @@ Real iOS Safari is unverified. Every run above is Chromium emulating an iPhone 1
 **On a phone the menu is BB's context menu.** Its items are 30 px tall in an iPhone 13 viewport, where the old sheet's rows were 44 px. That is the vendored component's size and matches BB's own context menus.
 
 **Verification.** `actions-check.cjs` checks the desktop paths. Against the build installed before this change, 3 of its 7 checks fail: the tooltip, the left-click on the selected tile, and Shift+F10. `mobile-drive.cjs` now opens every action through a long-press. Against the same build, 1 of its 31 checks fails, because a tap on the selected tile opens the old sheet. The new build passes both in full when served in place of the installed bundle.
+
+## Re-picking the selected tile (2026-09-29)
+
+A click or tap on the selected tile is now a pick, like every other way to pick a workspace, so from BB's new-thread screen it returns to that workspace's last thread. A long-press doesn't re-pick, because the click that ends the hold lands on `<html>` while the open menu blocks pointer events outside it.
 
 ## Tradeoffs accepted
 
